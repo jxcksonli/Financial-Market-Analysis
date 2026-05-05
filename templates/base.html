@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Financial Market Insights{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="orb orb-c"></div>
+      <div class="grain" aria-hidden="true"></div>
+    </div>
+
+    <div class="wrap {% block wrap_class %}{% endblock %}">
+      <header class="top">
+        <a href="{{ url_for('index') }}" class="brand brand-link" title="Home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">Financial Market <span class="brand-accent">Insights</span></span>
+        </a>
+        <span class="live-pill">
+          <span class="live-dot"></span>
+          yfinance
+        </span>
+      </header>
+
+      {% block content %}{% endblock %}
+
+      <footer class="foot">
+        <p>For research only — not investment advice.</p>
+      </footer>
+    </div>
+  </body>
+</html>

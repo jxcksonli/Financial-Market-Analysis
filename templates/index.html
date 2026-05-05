@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  <script src="{{ url_for('static', filename='home.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h1 class="hero-title">Look up any ticker</h1>
+    <p class="hero-lead">
+      US equities (NYSE / NASDAQ) or Australian listings on the ASX. For ASX, you can type
+      <span class="kbd">BHP</span> — we append <span class="kbd">.AX</span> when needed.
+    </p>
+  </section>
+
+  <form id="lookup-form" class="panel form-panel" autocomplete="off" action="#" method="get">
+    <div class="form-grid">
+      <label class="field field-grow">
+        <span class="label">Symbol</span>
+        <div class="input-shell">
+          <input
+            type="text"
+            id="ticker"
+            name="ticker"
+            placeholder="AAPL, MSFT, BHP…"
+            maxlength="32"
+            spellcheck="false"
+            autocomplete="off"
+            required
+          />
+        </div>
+      </label>
+
+      <fieldset class="market-fieldset">
+        <legend class="label">Market</legend>
+        <div class="market-options">
+          <label class="tile">
+            <input type="radio" name="market" value="us" checked />
+            <span class="tile-body">
+              <span class="tile-title">United States</span>
+              <span class="tile-sub">NYSE · NASDAQ</span>
+            </span>
+          </label>
+          <label class="tile">
+            <input type="radio" name="market" value="asx" />
+            <span class="tile-body">
+              <span class="tile-title">Australia</span>
+              <span class="tile-sub">ASX · ASX 200</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+    </div>
+
+    <button type="submit" class="btn primary" id="submit-btn">
+      <span class="btn-label">Open insight page</span>
+    </button>
+  </form>
+{% endblock %}

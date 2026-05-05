@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if error %}Financial Market Insights{% else %}{{ name or symbol }} — Financial Market Insights{% endif %}
+{% endblock %}
+
+{% block wrap_class %}wrap--ticker{% endblock %}
+
+{% block extra_head %}
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+    defer
+  ></script>
+  <script src="{{ url_for('static', filename='ticker_page.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+  <nav class="crumb">
+    <a href="{{ url_for('index') }}" class="crumb-link">← Home</a>
+  </nav>
+
+  {% if error %}
+    <div class="panel alert-panel">
+      <p class="alert-msg">{{ error }}</p>
+      <a href="{{ url_for('index') }}" class="btn secondary btn-inline">Back to search</a>
+    </div>
+  {% else %}
+    <section class="ticker-hero panel">
+      <div class="ticker-hero-row">
+        <div>
+          <span class="market-badge">{{ market_display }}</span>
+          <h1 class="ticker-title">{{ name or symbol }}</h1>
+          <p class="ticker-meta">
+            <span class="mono">{{ symbol }}</span>
+            {% if exchange %}<span class="dot-sep">·</span> {{ exchange }}{% endif %}
+            {% if currency %}<span class="dot-sep">·</span> {{ currency }}{% endif %}
+          </p>
+        </div>
+        <div class="ticker-price-block">
+          {% if last_display %}
+            <span class="price-label">Last</span>
+            <div class="q-price ticker-page-price" id="display-last">{{ last_display }}</div>
+          {% endif %}
+          {% if change_percent is not none %}
+            <div
+              class="chip q-change {% if change_percent > 0 %}up{% elif change_percent < 0 %}down{% else %}neutral{% endif %}"
+              id="display-change"
+            >
+              {% if change_percent > 0 %}▲ +{% elif change_percent < 0 %}▼ {% endif %}{{ "%.2f"|format(change_percent) }}%
+            </div>
+          {% elif change_percent is none and last_display %}
+            <div class="chip q-change neutral" id="display-change">—</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <article class="panel chart-panel ticker-chart-panel">
+      <div class="chart-head">
+        <div>
+          <h2 class="section-title">Chart (template series)</h2>
+          <p class="section-sub">
+            Placeholder curve from <span class="mono">analytics.get_template_chart_series()</span> — replace with your pandas pipeline.
+          </p>
+        </div>
+        <span class="chart-hint">Same layout for every ticker</span>
+      </div>
+      <div class="chart-wrap chart-wrap--ticker">
+        <canvas id="template-chart" height="140"></canvas>
+      </div>
+    </article>
+
+    <section class="analysis-section">
+      <h2 class="section-title analysis-heading">Analysis (template blocks)</h2>
+      <p class="section-sub analysis-lead">
+        Edit <span class="mono">analytics.get_analysis_sections()</span> to inject real metrics.
+      </p>
+      <div class="analysis-grid">
+        {% for block in analysis_sections %}
+          <article class="panel analysis-card">
+            <div class="analysis-card-head">
+              <h3 class="analysis-card-title">{{ block.title }}</h3>
+              {% if block.metric_label %}
+                <span class="analysis-metric">
+                  <span class="analysis-metric-label">{{ block.metric_label }}</span>
+                  <span class="analysis-metric-value">{{ block.metric_value }}</span>
+                </span>
+              {% endif %}
+            </div>
+            <p class="analysis-card-body">{{ block.body }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <script type="application/json" id="ticker-chart-data">
+      {{ graph_series | tojson }}
+    </script>
+    <script type="application/json" id="ticker-meta-json">
+      {{ {"currency": currency or "USD"} | tojson }}
+    </script>
+  {% endif %}
+{% endblock %}
