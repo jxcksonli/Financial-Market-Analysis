@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block extra_head %}
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+    defer
+  ></script>
   <script src="{{ url_for('static', filename='home.js') }}" defer></script>
 {% endblock %}
 
@@ -56,4 +60,61 @@
       <span class="btn-label">Open insight page</span>
     </button>
   </form>
+
+  <section class="panel watchlist-panel" aria-label="Watchlist comparison chart">
+    <div class="chart-head">
+      <div>
+        <h2 class="section-title">Watchlist chart</h2>
+        <p class="section-sub">
+          Add multiple tickers and track them together on one graph.
+        </p>
+      </div>
+      <div class="chart-controls">
+        <label class="label chart-label" for="watch-interval">View by</label>
+        <div class="input-shell input-shell--select">
+          <select id="watch-interval" name="interval">
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="quarter">Quarter</option>
+            <option value="year">Year</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-controls">
+        <label class="label chart-label" for="watch-scale">Display</label>
+        <div class="input-shell input-shell--select">
+          <select id="watch-scale" name="scale">
+            <option value="pct" selected>% Change</option>
+            <option value="price">Price</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="watchlist-controls">
+      <label class="field field-grow">
+        <span class="label">Add ticker</span>
+        <div class="input-shell">
+          <input
+            type="text"
+            id="watch-ticker"
+            placeholder="AAPL, MSFT, BHP…"
+            maxlength="32"
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </div>
+      </label>
+      <button type="button" class="btn secondary btn-inline" id="watch-add-btn">Add</button>
+      <button type="button" class="btn secondary btn-inline" id="watch-clear-btn">Clear</button>
+    </div>
+
+    <div class="watchlist-chips" id="watchlist-chips" aria-live="polite"></div>
+    <p class="status" id="watch-status"></p>
+
+    <div class="chart-wrap">
+      <canvas id="watchlist-chart" height="140"></canvas>
+    </div>
+  </section>
 {% endblock %}

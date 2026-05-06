@@ -902,6 +902,53 @@ input[type="text"]:focus {
   align-items: center;
 }
 
+.watchlist-panel {
+  margin-top: 1.25rem;
+}
+
+.watchlist-controls {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.watchlist-controls .btn-inline {
+  height: 44px;
+}
+
+.watchlist-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.watch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.watch-chip:hover {
+  border-color: var(--stroke-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.watch-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
 @media (max-width: 560px) {
   .market-options {
     grid-template-columns: 1fr;
