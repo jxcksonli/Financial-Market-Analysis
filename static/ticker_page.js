@@ -3,6 +3,15 @@
   const metaEl = document.getElementById("ticker-meta-json");
   if (!el || typeof Chart === "undefined") return;
 
+  const intervalSelect = document.getElementById("interval");
+  if (intervalSelect) {
+    intervalSelect.addEventListener("change", function () {
+      const url = new URL(window.location.href);
+      url.searchParams.set("interval", intervalSelect.value || "day");
+      window.location.href = url.toString();
+    });
+  }
+
   let series;
   try {
     series = JSON.parse(el.textContent || "[]");

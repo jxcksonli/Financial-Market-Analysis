@@ -43,7 +43,24 @@ def _fast_get(fast, key: str):
     return getattr(fast, key, None)
 
 
-def fetch_history(symbol: str, period: str = "3mo") -> tuple[dict | None, str | None]:
+def _history_rule(interval: str) -> str | None:
+    interval = (interval or "").strip().lower()
+    if interval in ("", "day", "daily", "d"):
+        return None
+    if interval in ("week", "weekly", "w"):
+        return "W-FRI"
+    if interval in ("month", "monthly", "m"):
+        return "M"
+    if interval in ("quarter", "quarterly", "q"):
+        return "Q"
+    if interval in ("year", "yearly", "y", "annual", "annually"):
+        return "Y"
+    return None
+
+
+def fetch_history(
+    symbol: str, period: str = "3mo", interval: str = "day"
+) -> tuple[dict | None, str | None]:
     try:
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period, auto_adjust=True)
@@ -54,6 +71,16 @@ def fetch_history(symbol: str, period: str = "3mo") -> tuple[dict | None, str | 
         )
         if df.empty:
             return None, "No usable OHLCV rows for this symbol."
+
+        rule = _history_rule(interval)
+        if rule:
+            # Close: last available in the bucket. Volume: total in bucket.
+            df = (
+                df.resample(rule)
+                .agg({"Close": "last", "Volume": "sum"})
+                .dropna(how="all", subset=["Close"])
+            )
+
         idx = df.index
         if getattr(idx, "tz", None) is not None:
             idx = idx.tz_convert(timezone.utc).tz_localize(None)
@@ -65,7 +92,9 @@ def fetch_history(symbol: str, period: str = "3mo") -> tuple[dict | None, str | 
         return None, str(e)
 
 
-def compute_quote(raw: str, market: str) -> tuple[dict[str, Any] | None, str | None]:
+def compute_quote(
+    raw: str, market: str, *, history_period: str = "3mo", history_interval: str = "day"
+) -> tuple[dict[str, Any] | None, str | None]:
     """Shared quote payload for /api/quote and ticker page."""
     if market not in ("us", "asx"):
         return None, 'market must be "us" or "asx"'
@@ -91,7 +120,9 @@ def compute_quote(raw: str, market: str) -> tuple[dict[str, Any] | None, str | N
     if prev_close is None:
         prev_close = info.get("previousClose")
 
-    hist_payload, hist_err = fetch_history(symbol)
+    hist_payload, hist_err = fetch_history(
+        symbol, period=history_period, interval=history_interval
+    )
     if last is None and hist_payload and hist_payload.get("series"):
         pts = hist_payload["series"]
         last = pts[-1]["close"]
@@ -147,7 +178,8 @@ def ticker_page(raw_ticker: str):
     if market not in ("us", "asx"):
         market = "us"
 
-    data, err = compute_quote(raw_ticker, market)
+    interval = request.args.get("interval", "day").lower()
+    data, err = compute_quote(raw_ticker, market, history_interval=interval)
     if err or data is None:
         return render_template(
             "ticker.html",
@@ -158,6 +190,7 @@ def ticker_page(raw_ticker: str):
 
     sym = data["symbol"]
     extras = analytics.build_ticker_extras(sym, market)
+    graph_series = (data.get("history") or {}).get("series") or extras["graph_series"]
 
     return render_template(
         "ticker.html",
@@ -166,12 +199,13 @@ def ticker_page(raw_ticker: str):
         symbol=sym,
         market=market,
         market_display=MARKET_DISPLAY[market],
+        interval=interval,
         last=data.get("last"),
         last_display=format_price(data.get("last"), data.get("currency")),
         change_percent=data.get("change_percent"),
         currency=data.get("currency"),
         exchange=data.get("exchange"),
-        graph_series=extras["graph_series"],
+        graph_series=graph_series,
         analysis_sections=extras["analysis_sections"],
     )
 
@@ -180,7 +214,8 @@ def ticker_page(raw_ticker: str):
 def quote():
     raw = request.args.get("ticker", "").strip()
     market = request.args.get("market", "us").lower()
-    data, err = compute_quote(raw, market)
+    interval = request.args.get("interval", "day").lower()
+    data, err = compute_quote(raw, market, history_interval=interval)
     if err:
         if "Enter a ticker" in err or "market must" in err:
             code = 400

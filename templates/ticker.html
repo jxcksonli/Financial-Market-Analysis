@@ -58,12 +58,23 @@
     <article class="panel chart-panel ticker-chart-panel">
       <div class="chart-head">
         <div>
-          <h2 class="section-title">Chart (template series)</h2>
+          <h2 class="section-title">Chart</h2>
           <p class="section-sub">
-            Placeholder curve from <span class="mono">analytics.get_template_chart_series()</span> — replace with your pandas pipeline.
+            Closing price grouped by the selected interval.
           </p>
         </div>
-        <span class="chart-hint">Same layout for every ticker</span>
+        <div class="chart-controls">
+          <label class="label chart-label" for="interval">View by</label>
+          <div class="input-shell input-shell--select">
+            <select id="interval" name="interval">
+              <option value="day" {% if interval == "day" %}selected{% endif %}>Day</option>
+              <option value="week" {% if interval == "week" %}selected{% endif %}>Week</option>
+              <option value="month" {% if interval == "month" %}selected{% endif %}>Month</option>
+              <option value="quarter" {% if interval == "quarter" %}selected{% endif %}>Quarter</option>
+              <option value="year" {% if interval == "year" %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="chart-wrap chart-wrap--ticker">
         <canvas id="template-chart" height="140"></canvas>
@@ -71,9 +82,9 @@
     </article>
 
     <section class="analysis-section">
-      <h2 class="section-title analysis-heading">Analysis (template blocks)</h2>
+      <h2 class="section-title analysis-heading">Analysis</h2>
       <p class="section-sub analysis-lead">
-        Edit <span class="mono">analytics.get_analysis_sections()</span> to inject real metrics.
+        Quant and fundamentals snapshot generated from recent price history and Yahoo Finance metadata.
       </p>
       <div class="analysis-grid">
         {% for block in analysis_sections %}

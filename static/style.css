@@ -762,6 +762,43 @@ input[type="text"]:focus {
   gap: 0.75rem 1rem;
 }
 
+.chart-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.chart-label {
+  margin-bottom: 0;
+}
+
+.input-shell--select select {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input-shell--select select:focus {
+  outline: none;
+}
+
+.input-shell--select option {
+  /* Windows browsers frequently force a light dropdown menu; ensure contrast. */
+  color: #0f172a;
+  background: #ffffff;
+}
+
 .analysis-section {
   margin-top: 0.5rem;
 }
