@@ -12,6 +12,7 @@
   const intervalEl = document.getElementById("watch-interval");
   const scaleEl = document.getElementById("watch-scale");
   const canvas = document.getElementById("watchlist-chart");
+  const tbodyEl = document.getElementById("watchlist-tbody");
 
   let chart = null;
 
@@ -129,6 +130,68 @@
     }
     const series = (((data || {}).history || {}).series) || [];
     return Array.isArray(series) ? series : [];
+  }
+
+  async function fetchQuote(item, interval) {
+    const q = new URLSearchParams({
+      ticker: item.ticker,
+      market: item.market,
+      interval: interval || "day",
+    });
+    const res = await fetch("/api/quote?" + q.toString(), { headers: { Accept: "application/json" } });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.ok) {
+      const err = (data && data.error) || ("Request failed (" + res.status + ")");
+      throw new Error(item.ticker + ": " + err);
+    }
+    return data;
+  }
+
+  function pctMoveFromSeries(series, lookbackDays) {
+    if (!Array.isArray(series) || series.length <= lookbackDays) return null;
+    const last = Number(series[series.length - 1].close);
+    const prev = Number(series[series.length - (lookbackDays + 1)].close);
+    if (!Number.isFinite(last) || !Number.isFinite(prev) || prev === 0) return null;
+    return ((last / prev) - 1) * 100;
+  }
+
+  function trendFrom1m(pct1m) {
+    if (pct1m == null || !Number.isFinite(pct1m)) return "—";
+    if (pct1m > 2) return "Bullish";
+    if (pct1m < -2) return "Bearish";
+    return "Neutral";
+  }
+
+  function renderTable(rows) {
+    if (!tbodyEl) return;
+    tbodyEl.innerHTML = "";
+    (rows || []).forEach((r) => {
+      const tr = document.createElement("tr");
+
+      const tdTicker = document.createElement("td");
+      tdTicker.textContent = r.ticker + (r.market === "asx" ? " (ASX)" : "");
+      tr.appendChild(tdTicker);
+
+      function tdNum(val, suffix) {
+        const td = document.createElement("td");
+        td.className = "num " + (val == null ? "" : val > 0 ? "pos" : val < 0 ? "neg" : "");
+        if (val == null || !Number.isFinite(val)) td.textContent = "—";
+        else td.textContent = val.toFixed(2) + (suffix || "");
+        return td;
+      }
+
+      tr.appendChild(tdNum(r.last, ""));
+      tr.appendChild(tdNum(r.d1, "%"));
+      tr.appendChild(tdNum(r.w1, "%"));
+      tr.appendChild(tdNum(r.m1, "%"));
+
+      const tdTrend = document.createElement("td");
+      tdTrend.className = "trend";
+      tdTrend.textContent = r.trend || "—";
+      tr.appendChild(tdTrend);
+
+      tbodyEl.appendChild(tr);
+    });
   }
 
   function buildAligned(labels, dateToValue) {
@@ -276,6 +339,34 @@
         },
       },
     });
+
+    // Summary table always uses daily history so 1D/1W/1M are consistent.
+    if (tbodyEl) {
+      try {
+        const quotes = await Promise.all(items.map(async (it) => ({ it, q: await fetchQuote(it, "day") })));
+        const rows = quotes.map(({ it, q }) => {
+          const series = (((q || {}).history || {}).series) || [];
+          const last = Number(q.last);
+          const d1 = Number.isFinite(q.change_percent) ? Number(q.change_percent) : pctMoveFromSeries(series, 1);
+          const w1 = pctMoveFromSeries(series, 5);
+          const m1 = pctMoveFromSeries(series, 21);
+          return {
+            ticker: it.ticker,
+            market: it.market,
+            last: Number.isFinite(last) ? last : null,
+            d1: d1 != null && Number.isFinite(d1) ? d1 : null,
+            w1: w1,
+            m1: m1,
+            trend: trendFrom1m(m1),
+          };
+        });
+        renderTable(rows);
+      } catch (e) {
+        renderTable([]);
+        setStatus((e && e.message) || "Loaded chart but failed to load table.", true);
+        return;
+      }
+    }
 
     setStatus("Loaded " + items.length + " tickers.", false);
   }
