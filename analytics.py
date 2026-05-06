@@ -24,6 +24,64 @@ import yfinance as yf
 
 _GDELT_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 
+# Simple category taxonomy (extensible)
+# Keep it intentionally small and “human-guessable”.
+CATEGORY_RULES: dict[str, dict[str, list[str]]] = {
+    "Utilities": {
+        "keywords": ["utility", "utilities", "power grid", "electricity", "gas", "water", "renewable", "solar", "wind"],
+        "domains": [],
+    },
+    "Tech": {
+        "keywords": ["ai", "chip", "semiconductor", "software", "cloud", "cyber", "iphone", "android", "microsoft", "apple"],
+        "domains": [],
+    },
+    "Finance": {
+        "keywords": ["bank", "banks", "interest rate", "rates", "fed", "rba", "inflation", "loan", "credit", "mortgage"],
+        "domains": [],
+    },
+    "Energy": {
+        "keywords": ["oil", "gas", "opec", "crude", "lng", "pipeline", "energy"],
+        "domains": [],
+    },
+    "Politics": {
+        "keywords": ["donald trump", "biden", "election", "tariff", "sanction", "white house", "congress", "parliament"],
+        "domains": [],
+    },
+}
+
+
+def _norm(s: str) -> str:
+    return (s or "").strip().lower()
+
+
+def classify_ticker_category(info: dict[str, Any]) -> str:
+    sector = _norm(str(info.get("sector") or ""))
+    industry = _norm(str(info.get("industry") or ""))
+    s = f"{sector} {industry}"
+    if "utility" in s:
+        return "Utilities"
+    if "financial" in s or "bank" in s or "insurance" in s:
+        return "Finance"
+    if "technology" in s or "software" in s or "semiconductor" in s:
+        return "Tech"
+    if "energy" in s or "oil" in s or "gas" in s:
+        return "Energy"
+    return "Other"
+
+
+def classify_news_category(title: str, domain: str | None = None) -> str:
+    text = f"{_norm(title)} {_norm(domain or '')}"
+    if not text.strip():
+        return "Other"
+    for cat, rules in CATEGORY_RULES.items():
+        for kw in rules.get("keywords", []):
+            if _norm(kw) and _norm(kw) in text:
+                return cat
+        for d in rules.get("domains", []):
+            if _norm(d) and _norm(d) in _norm(domain or ""):
+                return cat
+    return "Other"
+
 
 def _fmt_pct(x: float | None) -> str:
     if x is None:
@@ -142,6 +200,91 @@ def _gdelt_avg_tone(query: str, *, timespan: str = "7d") -> float | None:
     if not tones:
         return None
     return sum(tones) / float(len(tones))
+
+
+def _gdelt_articles(
+    query: str,
+    *,
+    startdatetime: str,
+    enddatetime: str,
+    max_records: int = 8,
+) -> list[dict[str, str]]:
+    """
+    Pull a small list of matching articles (title + url) from GDELT ArtList mode.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+
+    cache_key = ("artlist", f"{startdatetime}|{enddatetime}|{max_records}|{q}")
+    now = time.time()
+    cached = _GDELT_CACHE.get(cache_key)
+    if cached and now - cached[0] < 30 * 60:
+        # Stored as {"articles": [...]} for cache compatibility.
+        cached_articles = cached[1].get("articles")
+        if isinstance(cached_articles, list):
+            return [a for a in cached_articles if isinstance(a, dict)]  # type: ignore[return-value]
+
+    params = {
+        "query": q,
+        "mode": "ArtList",
+        "format": "json",
+        "startdatetime": startdatetime,
+        "enddatetime": enddatetime,
+        "maxrecords": str(max_records),
+        "sort": "datedesc",
+    }
+    url = "https://api.gdeltproject.org/api/v2/doc/doc?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "FinancialMarketInsights/1.0 (gdelt news; no-auth; educational)",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read()
+        obj = json.loads(raw)
+    except Exception:
+        return []
+
+    if not isinstance(obj, dict):
+        return []
+
+    arts = obj.get("articles")
+    if not isinstance(arts, list):
+        return []
+
+    out: list[dict[str, str]] = []
+    for a in arts:
+        if not isinstance(a, dict):
+            continue
+        title = a.get("title") or a.get("name") or ""
+        url = a.get("url") or ""
+        if not isinstance(title, str) or not isinstance(url, str):
+            continue
+        title = title.strip()
+        url = url.strip()
+        if not title or not url:
+            continue
+        seendate = a.get("seendate") or a.get("date") or ""
+        domain = a.get("domain") or ""
+        meta = " · ".join([x for x in [domain, seendate] if isinstance(x, str) and x.strip()])
+        cat = classify_news_category(title, domain if isinstance(domain, str) else None)
+        out.append(
+            {
+                "title": title,
+                "url": url,
+                "meta": meta,
+                "domain": domain if isinstance(domain, str) else "",
+                "category": cat,
+            }
+        )
+
+    _GDELT_CACHE[cache_key] = (now, {"articles": out})
+    return out
 
 
 def get_template_chart_series(symbol: str, market: str) -> list[dict[str, Any]]:
@@ -288,7 +431,116 @@ def get_analysis_sections(symbol: str, market: str) -> list[dict[str, Any]]:
         )
         sentiment_metric = f"{avg_tone:+.2f}"
 
-    return [
+    ticker_cat = classify_ticker_category(info)
+
+    # Big move detection (last ~60 sessions) + attach headlines around that date.
+    # Note: GDELT DOC API only searches the last ~3 months; this intentionally stays recent.
+    daily_rets = close.pct_change().dropna()
+    last_n = daily_rets.tail(60)
+    if last_n.empty:
+        moves_body = "No recent daily returns available to detect large moves."
+        moves_links: list[dict[str, str]] = []
+        moves_metric = "—"
+    else:
+        dip_date = last_n.idxmin()
+        dip_ret = float(last_n.min()) * 100.0
+        gain_date = last_n.idxmax()
+        gain_ret = float(last_n.max()) * 100.0
+
+        def _dt_range(d) -> tuple[str, str]:
+            # Search a 48h window around the move date.
+            # GDELT expects YYYYMMDDHHMMSS.
+            day = pd.Timestamp(d).to_pydatetime()
+            start = pd.Timestamp(day.date()) - pd.Timedelta(days=1)
+            end = pd.Timestamp(day.date()) + pd.Timedelta(days=1, hours=23, minutes=59, seconds=59)
+            return start.strftime("%Y%m%d%H%M%S"), end.strftime("%Y%m%d%H%M%S")
+
+        dip_start, dip_end = _dt_range(dip_date)
+        gain_start, gain_end = _dt_range(gain_date)
+
+        dip_links = _gdelt_articles(
+            gdelt_query, startdatetime=dip_start, enddatetime=dip_end, max_records=6
+        )
+        gain_links = _gdelt_articles(
+            gdelt_query, startdatetime=gain_start, enddatetime=gain_end, max_records=6
+        )
+
+        def _best_cause(links: list[dict[str, Any]]) -> dict[str, Any] | None:
+            if not links:
+                return None
+            for l in links:
+                if l.get("category") == ticker_cat and ticker_cat != "Other":
+                    return l
+            # Prefer politics if it explicitly mentions it (user example: Trump, actions, etc.)
+            for l in links:
+                if l.get("category") == "Politics":
+                    return l
+            return links[0]
+
+        dip_cause = _best_cause(dip_links)
+        gain_cause = _best_cause(gain_links)
+
+        moves_body = (
+            f"Largest dip (recent): {pd.Timestamp(dip_date).date().isoformat()} ({dip_ret:+.2f}%). "
+            f"Largest gain (recent): {pd.Timestamp(gain_date).date().isoformat()} ({gain_ret:+.2f}%)."
+        )
+        moves_links = (
+            [
+                {
+                    "title": f"Dip coverage ({l.get('category','Other')}): {l['title']}",
+                    "url": l["url"],
+                    "meta": l.get("meta", ""),
+                }
+                for l in dip_links[:3]
+            ]
+            + [
+                {
+                    "title": f"Gain coverage ({l.get('category','Other')}): {l['title']}",
+                    "url": l["url"],
+                    "meta": l.get("meta", ""),
+                }
+                for l in gain_links[:3]
+            ]
+        )
+        moves_metric = f"{max(abs(dip_ret), abs(gain_ret)):.2f}%"
+
+        dip_label = None
+        dip_url = None
+        if dip_cause:
+            dip_label = f"Caused by: {dip_cause.get('title','').strip()}"
+            dip_url = dip_cause.get("url")
+
+        gain_label = None
+        gain_url = None
+        if gain_cause:
+            gain_label = f"Caused by: {gain_cause.get('title','').strip()}"
+            gain_url = gain_cause.get("url")
+
+        # Expose marker data via a hidden analysis block entry (used by the chart JS).
+        # This keeps the wiring minimal without adding new routes.
+        marker_block = {
+            "title": "Chart markers",
+            "body": "",
+            "hidden": True,
+            "markers": [
+                {
+                    "date": pd.Timestamp(dip_date).date().isoformat(),
+                    "kind": "dip",
+                    "label": dip_label,
+                    "url": dip_url,
+                    "category": ticker_cat,
+                },
+                {
+                    "date": pd.Timestamp(gain_date).date().isoformat(),
+                    "kind": "gain",
+                    "label": gain_label,
+                    "url": gain_url,
+                    "category": ticker_cat,
+                },
+            ],
+        }
+
+    blocks = [
         {
             "title": "Price action",
             "body": price_action_body,
@@ -313,7 +565,17 @@ def get_analysis_sections(symbol: str, market: str) -> list[dict[str, Any]]:
             "metric_label": "Tone (7d)",
             "metric_value": sentiment_metric,
         },
+        {
+            "title": "Big moves ↔ news",
+            "body": moves_body,
+            "links": moves_links,
+            "metric_label": "Max move",
+            "metric_value": moves_metric,
+        },
     ]
+    if "marker_block" in locals():
+        blocks.append(marker_block)
+    return [b for b in blocks if b]
 
 
 def build_ticker_extras(symbol: str, market: str) -> dict[str, Any]:

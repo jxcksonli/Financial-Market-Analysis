@@ -869,6 +869,33 @@ input[type="text"]:focus {
   flex: 1;
 }
 
+.analysis-links {
+  margin: 0.85rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.analysis-links li {
+  margin: 0.35rem 0;
+}
+
+.analysis-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.analysis-links a:hover {
+  text-decoration: underline;
+}
+
+.analysis-link-meta {
+  margin-left: 0.5rem;
+  color: var(--muted-dim);
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
 .alert-panel {
   text-align: center;
   padding: 2rem 1.5rem;

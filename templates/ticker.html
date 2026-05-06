@@ -88,18 +88,39 @@
       </p>
       <div class="analysis-grid">
         {% for block in analysis_sections %}
-          <article class="panel analysis-card">
-            <div class="analysis-card-head">
-              <h3 class="analysis-card-title">{{ block.title }}</h3>
-              {% if block.metric_label %}
-                <span class="analysis-metric">
-                  <span class="analysis-metric-label">{{ block.metric_label }}</span>
-                  <span class="analysis-metric-value">{{ block.metric_value }}</span>
-                </span>
+          {% if block.hidden %}
+            {# Hidden payload blocks used by JS (chart markers, etc.) #}
+            {% if block.markers %}
+              <script type="application/json" id="ticker-markers-json">
+                {{ block.markers | tojson }}
+              </script>
+            {% endif %}
+          {% else %}
+            <article class="panel analysis-card">
+              <div class="analysis-card-head">
+                <h3 class="analysis-card-title">{{ block.title }}</h3>
+                {% if block.metric_label %}
+                  <span class="analysis-metric">
+                    <span class="analysis-metric-label">{{ block.metric_label }}</span>
+                    <span class="analysis-metric-value">{{ block.metric_value }}</span>
+                  </span>
+                {% endif %}
+              </div>
+              <p class="analysis-card-body">{{ block.body }}</p>
+              {% if block.links %}
+                <ul class="analysis-links">
+                  {% for link in block.links %}
+                    <li>
+                      <a href="{{ link.url | e }}" target="_blank" rel="noopener noreferrer">
+                        {{ link.title }}
+                      </a>
+                      {% if link.meta %}<span class="analysis-link-meta">{{ link.meta }}</span>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
               {% endif %}
-            </div>
-            <p class="analysis-card-body">{{ block.body }}</p>
-          </article>
+            </article>
+          {% endif %}
         {% endfor %}
       </div>
     </section>
