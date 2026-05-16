@@ -19,6 +19,8 @@
   const tickerForm = document.getElementById("chart-ticker-form");
   const rangeToggle = document.getElementById("range-toggle");
   const watchList = document.getElementById("watch-sidebar-list");
+  const sentimentRefreshBtn = document.getElementById("sentiment-refresh-btn");
+  const watchSentimentStatus = document.getElementById("watch-sentiment-status");
   const indicatorToolbar = document.getElementById("indicator-toolbar");
   const metaEl = document.getElementById("ticker-meta-json");
   const newsSidebar = document.getElementById("news-sidebar");
@@ -28,6 +30,13 @@
   const newsFilter = document.getElementById("news-filter");
   const newsSymbolLabel = document.getElementById("news-symbol-label");
   const newsWatchTabs = document.getElementById("news-watch-tabs");
+  const tabNews = document.getElementById("tab-news");
+  const tabEvents = document.getElementById("tab-events");
+  const paneNews = document.getElementById("side-panel-news");
+  const paneEvents = document.getElementById("side-panel-events");
+  const earningsEventsList = document.getElementById("earnings-events-list");
+  const macroEventsList = document.getElementById("macro-events-list");
+  const eventsStatus = document.getElementById("events-status");
 
   const NEWS_REFRESH_MS = 5 * 60 * 1000;
   const NEWS_COLLAPSE_KEY = "news-panel-collapsed";
@@ -42,6 +51,8 @@
   let newsTicker = symbol;
   let newsMarket = market;
   let newsRefreshTimer = null;
+  let eventsToken = 0;
+  let chartEventMarkers = [];
 
   if (metaEl) {
     try {
@@ -343,6 +354,186 @@
     };
   }
 
+  function buildEventMarkerShapes(markers, priceXAxis) {
+    const xref = priceXAxis || "x";
+    const shapes = [];
+    (markers || []).forEach(function (m) {
+      if (!m || !m.x) return;
+      const isEarnings = m.type === "earnings";
+      shapes.push({
+        type: "line",
+        xref: xref,
+        yref: "y domain",
+        x0: m.x,
+        x1: m.x,
+        y0: 0,
+        y1: 1,
+        line: {
+          color: isEarnings ? "rgba(251, 191, 36, 0.75)" : "rgba(129, 140, 248, 0.65)",
+          width: 1,
+          dash: "dash",
+        },
+      });
+    });
+    return shapes;
+  }
+
+  function formatDaysUntil(days) {
+    if (days == null || Number.isNaN(days)) return "";
+    if (days === 0) return "Today";
+    if (days === 1) return "1 day";
+    if (days > 0) return days + " days";
+    if (days === -1) return "1 day ago";
+    return Math.abs(days) + " days ago";
+  }
+
+  function setEventsStatus(msg, isError) {
+    if (!eventsStatus) return;
+    eventsStatus.textContent = msg || "";
+    eventsStatus.classList.toggle("error", Boolean(isError));
+  }
+
+  function renderEarningsEvents(items) {
+    if (!earningsEventsList) return;
+    earningsEventsList.innerHTML = "";
+    if (!items || !items.length) {
+      const li = document.createElement("li");
+      li.className = "event-row";
+      li.textContent = "No upcoming earnings in the next 90 days.";
+      earningsEventsList.appendChild(li);
+      return;
+    }
+    items.forEach(function (ev) {
+      const li = document.createElement("li");
+      li.className = "event-row" + (ev.soon ? " is-soon" : "");
+
+      const head = document.createElement("div");
+      head.className = "event-row-head";
+      const sym = document.createElement("span");
+      sym.className = "event-row-symbol";
+      sym.textContent = ev.symbol;
+      const dt = document.createElement("span");
+      dt.className = "event-row-date";
+      dt.textContent = ev.date;
+      head.appendChild(sym);
+      head.appendChild(dt);
+
+      const meta = document.createElement("p");
+      meta.className = "event-row-meta";
+      const parts = [];
+      if (ev.eps_estimate != null) parts.push("Est. EPS " + ev.eps_estimate);
+      if (ev.eps_previous != null) parts.push("Prev. EPS " + ev.eps_previous);
+      meta.textContent = parts.join(" · ") || "EPS TBA";
+      const days = document.createElement("span");
+      days.className = "event-row-days";
+      days.textContent = " · " + formatDaysUntil(ev.days_until);
+      meta.appendChild(days);
+
+      li.appendChild(head);
+      li.appendChild(meta);
+      earningsEventsList.appendChild(li);
+    });
+  }
+
+  function renderMacroEvents(items) {
+    if (!macroEventsList) return;
+    macroEventsList.innerHTML = "";
+    if (!items || !items.length) {
+      const li = document.createElement("li");
+      li.className = "event-cal-row";
+      li.textContent = "No upcoming macro events scheduled.";
+      macroEventsList.appendChild(li);
+      return;
+    }
+    items.forEach(function (ev) {
+      const li = document.createElement("li");
+      li.className = "event-cal-row" + (ev.soon ? " is-soon" : "");
+
+      const d = document.createElement("span");
+      d.className = "event-cal-date";
+      d.textContent = ev.date;
+
+      const title = document.createElement("span");
+      title.className = "event-cal-title";
+      title.textContent = ev.title;
+
+      const days = document.createElement("span");
+      days.className = "event-cal-days";
+      days.textContent = formatDaysUntil(ev.days_until);
+
+      li.appendChild(d);
+      li.appendChild(title);
+      li.appendChild(days);
+      macroEventsList.appendChild(li);
+    });
+  }
+
+  async function loadEvents() {
+    const token = ++eventsToken;
+    setEventsStatus("Loading events…");
+
+    try {
+      const url = new URL("/api/events", window.location.origin);
+      url.searchParams.set("ticker", symbol);
+      url.searchParams.set("market", market);
+      url.searchParams.set("range", range);
+
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (token !== eventsToken) return;
+
+      if (!res.ok || !data.ok) {
+        setEventsStatus(data.error || "Could not load events.", true);
+        chartEventMarkers = [];
+        if (chartPayload) renderChart(chartPayload);
+        return;
+      }
+
+      renderEarningsEvents(data.earnings || []);
+      renderMacroEvents(data.macro || []);
+      chartEventMarkers = data.chart_markers || [];
+      setEventsStatus("");
+      if (chartPayload) renderChart(chartPayload);
+    } catch (e) {
+      if (token !== eventsToken) return;
+      setEventsStatus(e.message || "Network error.", true);
+      chartEventMarkers = [];
+      if (chartPayload) renderChart(chartPayload);
+    }
+  }
+
+  function initSidePanelTabs() {
+    function activate(panel) {
+      const isNews = panel === "news";
+      if (tabNews) {
+        tabNews.classList.toggle("is-active", isNews);
+        tabNews.setAttribute("aria-selected", isNews ? "true" : "false");
+      }
+      if (tabEvents) {
+        tabEvents.classList.toggle("is-active", !isNews);
+        tabEvents.setAttribute("aria-selected", !isNews ? "true" : "false");
+      }
+      if (paneNews) {
+        paneNews.classList.toggle("is-active", isNews);
+        paneNews.hidden = !isNews;
+      }
+      if (paneEvents) {
+        paneEvents.classList.toggle("is-active", !isNews);
+        paneEvents.hidden = isNews;
+      }
+    }
+    if (tabNews) {
+      tabNews.addEventListener("click", function () {
+        activate("news");
+      });
+    }
+    if (tabEvents) {
+      tabEvents.addEventListener("click", function () {
+        activate("events");
+      });
+    }
+  }
+
   function renderChart(payload) {
     if (!payload || !plotEl) return;
     chartPayload = payload;
@@ -602,6 +793,11 @@
       });
     }
 
+    const priceXRef = axisId(panelIndex.price, "x");
+    buildEventMarkerShapes(chartEventMarkers, priceXRef).forEach(function (shape) {
+      layout.shapes.push(shape);
+    });
+
     const config = {
       responsive: true,
       displayModeBar: true,
@@ -677,9 +873,77 @@
       resizeChart();
       loadNews(symbol, market);
       syncNewsTabForSymbol(symbol);
+      loadEvents();
     } catch (e) {
       if (token !== loadToken) return;
       setStatus(e.message || "Network error.", true);
+    }
+  }
+
+  function sentimentBadgeClass(sentiment) {
+    if (sentiment === "bullish") return "sentiment-badge sentiment-bullish";
+    if (sentiment === "bearish") return "sentiment-badge sentiment-bearish";
+    return "sentiment-badge sentiment-neutral";
+  }
+
+  function setWatchSentimentStatus(msg, isError) {
+    if (!watchSentimentStatus) return;
+    watchSentimentStatus.textContent = msg || "";
+    watchSentimentStatus.classList.toggle("error", Boolean(isError));
+  }
+
+  function applySentimentToWatchlist(items) {
+    if (!watchList || !items) return;
+    const byLabel = {};
+    items.forEach(function (row) {
+      byLabel[row.label] = row;
+    });
+
+    watchList.querySelectorAll(".watch-sidebar-item").forEach(function (btn) {
+      const label = btn.dataset.label;
+      const row = byLabel[label];
+      const badge = btn.querySelector(".sentiment-badge");
+      if (!badge || !row) return;
+
+      badge.className = sentimentBadgeClass(row.sentiment);
+      badge.classList.remove("sentiment-loading");
+      const tip = row.reason + " — Risk: " + row.key_risk;
+      badge.setAttribute("data-tip", tip);
+    });
+  }
+
+  async function loadSentiment(forceRefresh) {
+    if (sentimentRefreshBtn) sentimentRefreshBtn.disabled = true;
+    setWatchSentimentStatus(forceRefresh ? "Refreshing sentiment…" : "Loading sentiment…");
+
+    try {
+      const url = new URL("/api/sentiment", window.location.origin);
+      if (forceRefresh) url.searchParams.set("refresh", "1");
+
+      const res = await fetch(url.toString());
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        setWatchSentimentStatus(data.error || "Could not load sentiment.", true);
+        return;
+      }
+
+      applySentimentToWatchlist(data.items || []);
+      const cached = (data.items || []).every(function (r) {
+        return r.from_cache;
+      });
+      const mins = Math.round((data.cache_ttl_sec || 1800) / 60);
+      if (forceRefresh) {
+        setWatchSentimentStatus("Sentiment updated just now.");
+      } else if (cached) {
+        setWatchSentimentStatus("Cached · refreshes in ~" + mins + " min");
+      } else {
+        setWatchSentimentStatus("Sentiment updated.");
+      }
+    } catch (e) {
+      setWatchSentimentStatus(e.message || "Network error.", true);
+    } finally {
+      if (sentimentRefreshBtn) sentimentRefreshBtn.disabled = false;
     }
   }
 
@@ -695,7 +959,18 @@
       btn.dataset.label = item.label;
       btn.dataset.ticker = item.ticker;
       btn.dataset.market = item.market;
-      btn.textContent = item.label;
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "watch-item-label";
+      labelSpan.textContent = item.label;
+
+      const badge = document.createElement("span");
+      badge.className = "sentiment-badge sentiment-neutral sentiment-loading";
+      badge.setAttribute("aria-label", "Sentiment loading");
+      badge.setAttribute("data-tip", "Sentiment loading…");
+
+      btn.appendChild(labelSpan);
+      btn.appendChild(badge);
       btn.addEventListener("click", function () {
         loadChart(item.ticker, item.market, range, item.label);
       });
@@ -733,9 +1008,17 @@
 
   buildNewsWatchTabs();
   initNewsCollapse();
+  initSidePanelTabs();
   buildWatchlist();
   setActiveRange(range);
   startNewsRefresh();
+
+  if (sentimentRefreshBtn) {
+    sentimentRefreshBtn.addEventListener("click", function () {
+      loadSentiment(true);
+    });
+  }
+  loadSentiment(false);
 
   const initialLabel = DEFAULT_WATCHLIST.find(function (w) {
     return symbol.toUpperCase().startsWith(w.ticker) || symbol.toUpperCase() === w.ticker + ".AX";

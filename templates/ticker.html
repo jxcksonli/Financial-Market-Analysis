@@ -30,7 +30,18 @@
       data-range="{{ chart_range }}"
     >
       <aside class="watch-sidebar" aria-label="Watchlist">
-        <h2 class="watch-sidebar-title">Watchlist</h2>
+        <div class="watch-sidebar-head">
+          <h2 class="watch-sidebar-title">Watchlist</h2>
+          <button
+            type="button"
+            class="btn secondary watch-sentiment-refresh"
+            id="sentiment-refresh-btn"
+            title="Re-analyze all watchlist tickers with Claude"
+          >
+            Refresh sentiment
+          </button>
+        </div>
+        <p class="watch-sentiment-status" id="watch-sentiment-status" aria-live="polite"></p>
         <ul class="watch-sidebar-list" id="watch-sidebar-list"></ul>
       </aside>
 
@@ -131,8 +142,12 @@
           <span class="news-collapse-icon" aria-hidden="true">›</span>
         </button>
         <div class="news-sidebar-inner" id="news-sidebar-inner">
+          <div class="side-panel-tabs" role="tablist" aria-label="Sidebar panels">
+            <button type="button" class="side-panel-tab is-active" id="tab-news" data-panel="news" role="tab" aria-selected="true">News</button>
+            <button type="button" class="side-panel-tab" id="tab-events" data-panel="events" role="tab" aria-selected="false">Events</button>
+          </div>
+          <div class="side-panel-pane is-active" id="side-panel-news" role="tabpanel">
           <header class="news-sidebar-head">
-            <h2 class="news-sidebar-title">News</h2>
             <p class="news-sidebar-symbol mono" id="news-symbol-label">—</p>
           </header>
 
@@ -151,7 +166,22 @@
 
           <ul class="news-list" id="news-list" aria-live="polite"></ul>
           <p class="news-status" id="news-status"></p>
-          <p class="news-attribution">Data via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+          <p class="news-attribution">News via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+          </div>
+          <div class="side-panel-pane" id="side-panel-events" role="tabpanel" hidden>
+            <section class="events-block">
+              <h3 class="events-block-title">Upcoming earnings</h3>
+              <p class="events-block-sub">NVTS, ETHA, and chart ticker</p>
+              <ul class="events-list" id="earnings-events-list" aria-live="polite"></ul>
+            </section>
+            <section class="events-block">
+              <h3 class="events-block-title">Macro calendar</h3>
+              <p class="events-block-sub">Fed · CPI · NFP (US)</p>
+              <ul class="events-calendar-list" id="macro-events-list" aria-live="polite"></ul>
+            </section>
+            <p class="news-status" id="events-status"></p>
+            <p class="news-attribution">Earnings via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+          </div>
         </div>
       </aside>
     </div>

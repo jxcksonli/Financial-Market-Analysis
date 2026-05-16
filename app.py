@@ -14,8 +14,11 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
 import analytics
+import events_service
 import finnhub_news
 import indicators
+import morning_brief
+import sentiment_service
 
 load_dotenv()
 
@@ -379,6 +382,94 @@ def news():
         return jsonify({"ok": False, "error": msg, "symbol": symbol}), code
 
     return jsonify({"ok": True, "market": market, **payload})
+
+
+@app.get("/api/morning-brief")
+def morning_brief_api():
+    try:
+        payload = morning_brief.generate_morning_brief()
+    except ValueError as e:
+        msg = str(e)
+        if "ANTHROPIC_API_KEY" in msg or "Invalid Anthropic" in msg:
+            code = 503
+        elif "FINNHUB" in msg:
+            code = 503
+        elif "rate limit" in msg.lower():
+            code = 429
+        else:
+            code = 502
+        return jsonify({"ok": False, "error": msg}), code
+
+    return jsonify(
+        {
+            "ok": True,
+            "brief": payload["brief"],
+            "date": payload["date"],
+            "generated_at": payload["generated_at"],
+            "model": payload["model"],
+        }
+    )
+
+
+@app.get("/api/sentiment")
+def sentiment():
+    refresh = request.args.get("refresh", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    try:
+        payload = sentiment_service.get_watchlist_sentiment(force_refresh=refresh)
+    except ValueError as e:
+        msg = str(e)
+        if "ANTHROPIC_API_KEY" in msg or "Invalid Anthropic" in msg:
+            code = 503
+        elif "rate limit" in msg.lower():
+            code = 429
+        else:
+            code = 502
+        return jsonify({"ok": False, "error": msg}), code
+
+    return jsonify({"ok": True, **payload})
+
+
+@app.get("/api/events")
+def events():
+    raw = request.args.get("ticker", "").strip()
+    market = request.args.get("market", "us").lower()
+    range_key = request.args.get("range", DEFAULT_CHART_RANGE).strip().upper()
+    if range_key not in CHART_RANGES:
+        range_key = DEFAULT_CHART_RANGE
+
+    if market not in ("us", "asx"):
+        return jsonify({"ok": False, "error": 'market must be "us" or "asx"'}), 400
+    if not raw.strip():
+        return jsonify({"ok": False, "error": "Enter a ticker symbol."}), 400
+
+    symbol = normalize_ticker(raw, market)
+    bars: list[dict[str, Any]] | None = None
+    intraday = False
+
+    ohlc, err = fetch_ohlc(symbol, range_key)
+    if not err and ohlc:
+        bars = ohlc.get("bars") or []
+        intraday = bool(ohlc.get("intraday"))
+
+    try:
+        payload = events_service.fetch_events_payload(
+            symbol, range_key, bars, intraday=intraday
+        )
+    except ValueError as e:
+        msg = str(e)
+        if "FINNHUB_API_KEY" in msg or "Invalid Finnhub" in msg:
+            code = 503
+        elif "rate limit" in msg.lower():
+            code = 429
+        else:
+            code = 502
+        return jsonify({"ok": False, "error": msg, "symbol": symbol}), code
+
+    return jsonify({"ok": True, "market": market, "range": range_key, **payload})
 
 
 @app.get("/api/quote")
