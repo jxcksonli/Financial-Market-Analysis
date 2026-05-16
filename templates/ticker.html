@@ -118,6 +118,42 @@
         <div class="chart-plot-host" id="plotly-chart" aria-label="Price chart"></div>
         <p class="chart-status" id="chart-status" role="status" aria-live="polite"></p>
       </div>
+
+      <aside class="news-sidebar" id="news-sidebar" aria-label="News">
+        <button
+          type="button"
+          class="news-collapse-btn"
+          id="news-collapse-btn"
+          aria-expanded="true"
+          aria-controls="news-sidebar-inner"
+          title="Collapse news panel"
+        >
+          <span class="news-collapse-icon" aria-hidden="true">›</span>
+        </button>
+        <div class="news-sidebar-inner" id="news-sidebar-inner">
+          <header class="news-sidebar-head">
+            <h2 class="news-sidebar-title">News</h2>
+            <p class="news-sidebar-symbol mono" id="news-symbol-label">—</p>
+          </header>
+
+          <div class="news-watch-tabs" id="news-watch-tabs" role="tablist" aria-label="Watchlist news"></div>
+
+          <div class="news-filter-wrap">
+            <label class="sr-only" for="news-filter">News filter</label>
+            <div class="input-shell input-shell--select news-filter-shell">
+              <select id="news-filter" name="news-filter">
+                <option value="all" selected>All</option>
+                <option value="company">Company-specific</option>
+                <option value="market">Market news</option>
+              </select>
+            </div>
+          </div>
+
+          <ul class="news-list" id="news-list" aria-live="polite"></ul>
+          <p class="news-status" id="news-status"></p>
+          <p class="news-attribution">Data via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+        </div>
+      </aside>
     </div>
 
     <section class="analysis-section analysis-section--below">

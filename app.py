@@ -10,10 +10,14 @@ from typing import Any
 
 import pandas as pd
 import yfinance as yf
+from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
 import analytics
+import finnhub_news
 import indicators
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -347,6 +351,33 @@ def ohlc():
         code = 404 if "No " in err or "Invalid" in err else 502
         return jsonify({"ok": False, "error": err, "symbol": symbol}), code
     assert payload is not None
+    return jsonify({"ok": True, "market": market, **payload})
+
+
+@app.get("/api/news")
+def news():
+    raw = request.args.get("ticker", "").strip()
+    market = request.args.get("market", "us").lower()
+    news_filter = request.args.get("filter", "all").lower()
+
+    if market not in ("us", "asx"):
+        return jsonify({"ok": False, "error": 'market must be "us" or "asx"'}), 400
+    if not raw.strip():
+        return jsonify({"ok": False, "error": "Enter a ticker symbol."}), 400
+
+    symbol = normalize_ticker(raw, market)
+    try:
+        payload = finnhub_news.fetch_news(symbol, news_filter)
+    except ValueError as e:
+        msg = str(e)
+        if "FINNHUB_API_KEY" in msg or "Invalid Finnhub" in msg:
+            code = 503
+        elif "rate limit" in msg.lower():
+            code = 429
+        else:
+            code = 502
+        return jsonify({"ok": False, "error": msg, "symbol": symbol}), code
+
     return jsonify({"ok": True, "market": market, **payload})
 
 

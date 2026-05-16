@@ -21,6 +21,16 @@
   const watchList = document.getElementById("watch-sidebar-list");
   const indicatorToolbar = document.getElementById("indicator-toolbar");
   const metaEl = document.getElementById("ticker-meta-json");
+  const newsSidebar = document.getElementById("news-sidebar");
+  const newsCollapseBtn = document.getElementById("news-collapse-btn");
+  const newsList = document.getElementById("news-list");
+  const newsStatus = document.getElementById("news-status");
+  const newsFilter = document.getElementById("news-filter");
+  const newsSymbolLabel = document.getElementById("news-symbol-label");
+  const newsWatchTabs = document.getElementById("news-watch-tabs");
+
+  const NEWS_REFRESH_MS = 5 * 60 * 1000;
+  const NEWS_COLLAPSE_KEY = "news-panel-collapsed";
 
   let currency = "USD";
   let market = app.dataset.market || "us";
@@ -28,6 +38,10 @@
   let range = (app.dataset.range || "3M").toUpperCase();
   let loadToken = 0;
   let chartPayload = null;
+  let newsToken = 0;
+  let newsTicker = symbol;
+  let newsMarket = market;
+  let newsRefreshTimer = null;
 
   if (metaEl) {
     try {
@@ -77,6 +91,174 @@
     if (!watchList) return;
     watchList.querySelectorAll(".watch-sidebar-item").forEach(function (btn) {
       btn.classList.toggle("is-active", btn.dataset.label === label);
+    });
+    setActiveNewsTab(label);
+  }
+
+  function setActiveNewsTab(label) {
+    if (!newsWatchTabs) return;
+    newsWatchTabs.querySelectorAll(".news-watch-tab").forEach(function (btn) {
+      const match =
+        label &&
+        (btn.dataset.label === label ||
+          btn.dataset.ticker === label ||
+          btn.dataset.ticker === (label || "").replace(".AX", ""));
+      btn.classList.toggle("is-active", Boolean(match));
+    });
+  }
+
+  function syncNewsTabForSymbol(sym) {
+    const upper = (sym || "").toUpperCase();
+    const hit = DEFAULT_WATCHLIST.find(function (w) {
+      return upper === w.ticker || upper === w.ticker + ".AX" || upper.startsWith(w.ticker);
+    });
+    setActiveNewsTab(hit ? hit.label : null);
+  }
+
+  function setNewsStatus(msg, isError) {
+    if (!newsStatus) return;
+    newsStatus.textContent = msg || "";
+    newsStatus.classList.toggle("error", Boolean(isError));
+  }
+
+  function renderNewsList(items) {
+    if (!newsList) return;
+    newsList.innerHTML = "";
+    if (!items || !items.length) {
+      const li = document.createElement("li");
+      li.className = "news-item news-item--empty";
+      li.textContent = "No headlines found for this filter.";
+      newsList.appendChild(li);
+      return;
+    }
+    items.forEach(function (item) {
+      const li = document.createElement("li");
+      li.className = "news-item";
+      const a = document.createElement("a");
+      a.className = "news-link";
+      a.href = item.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+
+      const h = document.createElement("p");
+      h.className = "news-headline";
+      h.textContent = item.headline;
+
+      const meta = document.createElement("p");
+      meta.className = "news-meta";
+      if (item.source) {
+        const src = document.createElement("span");
+        src.className = "news-meta-source";
+        src.textContent = item.source;
+        meta.appendChild(src);
+      }
+      if (item.time_ago) {
+        const t = document.createElement("span");
+        t.textContent = item.time_ago;
+        meta.appendChild(t);
+      }
+      if (item.category) {
+        const tag = document.createElement("span");
+        tag.className = "news-meta-tag";
+        tag.textContent = item.category === "company" ? "Company" : "Market";
+        meta.appendChild(tag);
+      }
+
+      a.appendChild(h);
+      a.appendChild(meta);
+      li.appendChild(a);
+      newsList.appendChild(li);
+    });
+  }
+
+  async function loadNews(nextTicker, nextMarket) {
+    const raw = (nextTicker || newsTicker || symbol || "").trim();
+    if (!raw) return;
+
+    const reqMarket = nextMarket || newsMarket || market || "us";
+    const filt = (newsFilter && newsFilter.value) || "all";
+    const token = ++newsToken;
+
+    newsTicker = raw.toUpperCase();
+    newsMarket = reqMarket;
+    if (newsSymbolLabel) newsSymbolLabel.textContent = newsTicker;
+
+    setNewsStatus("Loading news…");
+
+    try {
+      const url = new URL("/api/news", window.location.origin);
+      url.searchParams.set("ticker", newsTicker);
+      url.searchParams.set("market", newsMarket);
+      url.searchParams.set("filter", filt);
+
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (token !== newsToken) return;
+
+      if (!res.ok || !data.ok) {
+        setNewsStatus(data.error || "Could not load news.", true);
+        renderNewsList([]);
+        return;
+      }
+
+      newsTicker = data.symbol || newsTicker;
+      if (newsSymbolLabel) {
+        const fh = data.finnhub_symbol && data.finnhub_symbol !== newsTicker;
+        newsSymbolLabel.textContent = fh
+          ? newsTicker + " · " + data.finnhub_symbol
+          : newsTicker;
+      }
+      renderNewsList(data.items || []);
+      const n = (data.items || []).length;
+      setNewsStatus(n ? "Updated " + new Date().toLocaleTimeString() : "");
+    } catch (e) {
+      if (token !== newsToken) return;
+      setNewsStatus(e.message || "Network error.", true);
+      renderNewsList([]);
+    }
+  }
+
+  function startNewsRefresh() {
+    if (newsRefreshTimer) clearInterval(newsRefreshTimer);
+    newsRefreshTimer = setInterval(function () {
+      loadNews(newsTicker, newsMarket);
+    }, NEWS_REFRESH_MS);
+  }
+
+  function buildNewsWatchTabs() {
+    if (!newsWatchTabs) return;
+    newsWatchTabs.innerHTML = "";
+    DEFAULT_WATCHLIST.forEach(function (item) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "news-watch-tab";
+      btn.dataset.label = item.label;
+      btn.dataset.ticker = item.ticker;
+      btn.dataset.market = item.market;
+      btn.setAttribute("role", "tab");
+      btn.textContent = item.label;
+      btn.addEventListener("click", function () {
+        setActiveNewsTab(item.label);
+        loadNews(item.ticker, item.market);
+      });
+      newsWatchTabs.appendChild(btn);
+    });
+  }
+
+  function initNewsCollapse() {
+    if (!newsSidebar || !newsCollapseBtn) return;
+    const collapsed = localStorage.getItem(NEWS_COLLAPSE_KEY) === "1";
+    newsSidebar.classList.toggle("is-collapsed", collapsed);
+    newsCollapseBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    newsCollapseBtn.title = collapsed ? "Expand news panel" : "Collapse news panel";
+
+    newsCollapseBtn.addEventListener("click", function () {
+      const nowCollapsed = !newsSidebar.classList.contains("is-collapsed");
+      newsSidebar.classList.toggle("is-collapsed", nowCollapsed);
+      newsCollapseBtn.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+      newsCollapseBtn.title = nowCollapsed ? "Expand news panel" : "Collapse news panel";
+      localStorage.setItem(NEWS_COLLAPSE_KEY, nowCollapsed ? "1" : "0");
+      resizeChart();
     });
   }
 
@@ -493,6 +675,8 @@
       renderChart(data);
       setStatus("");
       resizeChart();
+      loadNews(symbol, market);
+      syncNewsTabForSymbol(symbol);
     } catch (e) {
       if (token !== loadToken) return;
       setStatus(e.message || "Network error.", true);
@@ -541,8 +725,17 @@
     });
   }
 
+  if (newsFilter) {
+    newsFilter.addEventListener("change", function () {
+      loadNews(newsTicker, newsMarket);
+    });
+  }
+
+  buildNewsWatchTabs();
+  initNewsCollapse();
   buildWatchlist();
   setActiveRange(range);
+  startNewsRefresh();
 
   const initialLabel = DEFAULT_WATCHLIST.find(function (w) {
     return symbol.toUpperCase().startsWith(w.ticker) || symbol.toUpperCase() === w.ticker + ".AX";
