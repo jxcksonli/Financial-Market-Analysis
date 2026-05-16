@@ -4,18 +4,15 @@
   {% if error %}Financial Market Insights{% else %}{{ name or symbol }} — Financial Market Insights{% endif %}
 {% endblock %}
 
-{% block wrap_class %}wrap--ticker{% endblock %}
+{% block wrap_class %}wrap--chart{% endblock %}
 
 {% block extra_head %}
-  <script
-    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
-    defer
-  ></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8" defer></script>
   <script src="{{ url_for('static', filename='ticker_page.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
-  <nav class="crumb">
+  <nav class="crumb crumb--chart">
     <a href="{{ url_for('index') }}" class="crumb-link">← Home</a>
   </nav>
 
@@ -25,63 +22,105 @@
       <a href="{{ url_for('index') }}" class="btn secondary btn-inline">Back to search</a>
     </div>
   {% else %}
-    <section class="ticker-hero panel">
-      <div class="ticker-hero-row">
-        <div>
-          <span class="market-badge">{{ market_display }}</span>
-          <h1 class="ticker-title">{{ name or symbol }}</h1>
-          <p class="ticker-meta">
-            <span class="mono">{{ symbol }}</span>
-            {% if exchange %}<span class="dot-sep">·</span> {{ exchange }}{% endif %}
-            {% if currency %}<span class="dot-sep">·</span> {{ currency }}{% endif %}
-          </p>
-        </div>
-        <div class="ticker-price-block">
-          {% if last_display %}
-            <span class="price-label">Last</span>
-            <div class="q-price ticker-page-price" id="display-last">{{ last_display }}</div>
-          {% endif %}
-          {% if change_percent is not none %}
-            <div
-              class="chip q-change {% if change_percent > 0 %}up{% elif change_percent < 0 %}down{% else %}neutral{% endif %}"
-              id="display-change"
-            >
-              {% if change_percent > 0 %}▲ +{% elif change_percent < 0 %}▼ {% endif %}{{ "%.2f"|format(change_percent) }}%
+    <div
+      class="chart-app"
+      id="chart-app"
+      data-symbol="{{ symbol }}"
+      data-market="{{ market }}"
+      data-range="{{ chart_range }}"
+    >
+      <aside class="watch-sidebar" aria-label="Watchlist">
+        <h2 class="watch-sidebar-title">Watchlist</h2>
+        <ul class="watch-sidebar-list" id="watch-sidebar-list"></ul>
+      </aside>
+
+      <div class="chart-main">
+        <header class="chart-toolbar panel">
+          <form class="chart-ticker-form" id="chart-ticker-form" autocomplete="off">
+            <label class="sr-only" for="chart-ticker-input">Ticker</label>
+            <div class="input-shell chart-ticker-shell">
+              <input
+                type="text"
+                id="chart-ticker-input"
+                value="{{ symbol }}"
+                placeholder="AAPL, SPY, QQQ…"
+                maxlength="32"
+                spellcheck="false"
+                autocomplete="off"
+              />
             </div>
-          {% elif change_percent is none and last_display %}
-            <div class="chip q-change neutral" id="display-change">—</div>
-          {% endif %}
-        </div>
-      </div>
-    </section>
+            <button type="submit" class="btn secondary btn-inline chart-go-btn">Go</button>
+          </form>
 
-    <article class="panel chart-panel ticker-chart-panel">
-      <div class="chart-head">
-        <div>
-          <h2 class="section-title">Chart</h2>
-          <p class="section-sub">
-            Closing price grouped by the selected interval.
-          </p>
-        </div>
-        <div class="chart-controls">
-          <label class="label chart-label" for="interval">View by</label>
-          <div class="input-shell input-shell--select">
-            <select id="interval" name="interval">
-              <option value="day" {% if interval == "day" %}selected{% endif %}>Day</option>
-              <option value="week" {% if interval == "week" %}selected{% endif %}>Week</option>
-              <option value="month" {% if interval == "month" %}selected{% endif %}>Month</option>
-              <option value="quarter" {% if interval == "quarter" %}selected{% endif %}>Quarter</option>
-              <option value="year" {% if interval == "year" %}selected{% endif %}>Year</option>
-            </select>
+          <div class="range-toggle" id="range-toggle" role="group" aria-label="Timeframe">
+            {% for r in chart_ranges %}
+              <button
+                type="button"
+                class="range-btn{% if r == chart_range %} is-active{% endif %}"
+                data-range="{{ r }}"
+              >
+                {{ r }}
+              </button>
+            {% endfor %}
           </div>
-        </div>
-      </div>
-      <div class="chart-wrap chart-wrap--ticker">
-        <canvas id="template-chart" height="140"></canvas>
-      </div>
-    </article>
 
-    <section class="analysis-section">
+          <div class="chart-quote" id="chart-quote">
+            <div class="chart-quote-names">
+              <span class="market-badge market-badge--compact">{{ market_display }}</span>
+              <h1 class="chart-symbol-title" id="chart-name">{{ name or symbol }}</h1>
+              <p class="chart-symbol-meta">
+                <span class="mono" id="chart-symbol">{{ symbol }}</span>
+                {% if exchange %}<span class="dot-sep">·</span> <span id="chart-exchange">{{ exchange }}</span>{% endif %}
+              </p>
+            </div>
+            <div class="chart-quote-prices">
+              {% if last_display %}
+                <div class="q-price ticker-page-price" id="display-last">{{ last_display }}</div>
+              {% endif %}
+              {% if change_percent is not none %}
+                <div
+                  class="chip q-change {% if change_percent > 0 %}up{% elif change_percent < 0 %}down{% else %}neutral{% endif %}"
+                  id="display-change"
+                >
+                  {% if change_percent > 0 %}▲ +{% elif change_percent < 0 %}▼ {% endif %}{{ "%.2f"|format(change_percent) }}%
+                </div>
+              {% else %}
+                <div class="chip q-change neutral" id="display-change">—</div>
+              {% endif %}
+            </div>
+          </div>
+        </header>
+
+        <div class="indicator-toolbar panel" id="indicator-toolbar" aria-label="Chart indicators">
+          <span class="indicator-toolbar-label">Indicators</span>
+          <label class="indicator-check">
+            <input type="checkbox" id="ind-ma" data-indicator="ma" />
+            <span>MA 50 / 200</span>
+          </label>
+          <label class="indicator-check">
+            <input type="checkbox" id="ind-bb" data-indicator="bb" />
+            <span>Bollinger</span>
+          </label>
+          <label class="indicator-check">
+            <input type="checkbox" id="ind-volume" data-indicator="volume" checked />
+            <span>Volume</span>
+          </label>
+          <label class="indicator-check">
+            <input type="checkbox" id="ind-rsi" data-indicator="rsi" />
+            <span>RSI (14)</span>
+          </label>
+          <label class="indicator-check">
+            <input type="checkbox" id="ind-macd" data-indicator="macd" />
+            <span>MACD</span>
+          </label>
+        </div>
+
+        <div class="chart-plot-host" id="plotly-chart" aria-label="Price chart"></div>
+        <p class="chart-status" id="chart-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <section class="analysis-section analysis-section--below">
       <h2 class="section-title analysis-heading">Analysis</h2>
       <p class="section-sub analysis-lead">
         Quant and fundamentals snapshot generated from recent price history and Yahoo Finance metadata.
@@ -89,7 +128,6 @@
       <div class="analysis-grid">
         {% for block in analysis_sections %}
           {% if block.hidden %}
-            {# Hidden payload blocks used by JS (chart markers, etc.) #}
             {% if block.markers %}
               <script type="application/json" id="ticker-markers-json">
                 {{ block.markers | tojson }}
@@ -125,11 +163,8 @@
       </div>
     </section>
 
-    <script type="application/json" id="ticker-chart-data">
-      {{ graph_series | tojson }}
-    </script>
     <script type="application/json" id="ticker-meta-json">
-      {{ {"currency": currency or "USD"} | tojson }}
+      {{ {"currency": currency or "USD", "market": market} | tojson }}
     </script>
   {% endif %}
 {% endblock %}

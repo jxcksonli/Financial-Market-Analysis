@@ -664,6 +664,303 @@ input[type="text"]:focus {
   max-width: 880px;
 }
 
+.wrap--chart {
+  max-width: none;
+  width: 100%;
+  padding: 0.5rem 0.65rem 1.25rem;
+}
+
+.wrap--chart .top {
+  margin-bottom: 0.85rem;
+}
+
+.wrap--chart .foot {
+  margin-top: 1rem;
+}
+
+.crumb--chart {
+  margin-bottom: 0.5rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.chart-app {
+  display: flex;
+  gap: 0.65rem;
+  min-height: max(80vh, calc(100vh - 7rem));
+  height: calc(100vh - 5.75rem);
+}
+
+.watch-sidebar {
+  flex: 0 0 9.5rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.75rem 0.65rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-panel);
+}
+
+.watch-sidebar-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-dim);
+}
+
+.watch-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.watch-sidebar-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.watch-sidebar-item:hover {
+  border-color: var(--stroke-strong);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.watch-sidebar-item.is-active {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
+.chart-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.35rem;
+}
+
+.chart-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  padding: 0.65rem 0.85rem;
+  margin: 0;
+}
+
+.indicator-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.5rem 0.85rem;
+  margin: 0;
+}
+
+.indicator-toolbar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-dim);
+  margin-right: 0.15rem;
+}
+
+.indicator-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.indicator-check input {
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.indicator-check:hover {
+  color: var(--text);
+}
+
+.chart-ticker-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+}
+
+.chart-ticker-shell {
+  min-width: 7.5rem;
+  width: 9.5rem;
+}
+
+.chart-ticker-shell input[type="text"] {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+.chart-go-btn {
+  margin: 0;
+  padding: 0.5rem 0.85rem;
+  height: auto;
+  white-space: nowrap;
+}
+
+.range-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.range-btn {
+  padding: 0.4rem 0.55rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.range-btn:hover {
+  color: var(--text);
+  border-color: var(--stroke-strong);
+}
+
+.range-btn.is-active {
+  color: var(--accent);
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.chart-quote {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .chart-quote {
+    flex: 0 1 auto;
+    margin-left: auto;
+  }
+}
+
+.chart-quote-names {
+  min-width: 0;
+  text-align: right;
+}
+
+.market-badge--compact {
+  margin-bottom: 0.35rem;
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.chart-symbol-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+.chart-symbol-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.chart-quote-prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.chart-quote-prices .ticker-page-price {
+  font-size: 1.35rem;
+}
+
+.chart-plot-host {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.chart-plot-host .js-plotly-plot,
+.chart-plot-host .plotly {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.chart-status {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: 0.82rem;
+  color: var(--muted-dim);
+}
+
+.chart-status.error {
+  color: var(--down);
+}
+
+.analysis-section--below {
+  margin-top: 1.25rem;
+  max-width: 1100px;
+}
+
 .crumb {
   margin-bottom: 1.25rem;
 }
@@ -1048,5 +1345,46 @@ input[type="text"]:focus {
 
   .ticker-price-block {
     text-align: left;
+  }
+
+  .chart-app {
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+  }
+
+  .watch-sidebar {
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .watch-sidebar-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .watch-sidebar-item {
+    width: auto;
+  }
+
+  .chart-plot-host {
+    min-height: 70vh;
+  }
+
+  .chart-quote {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-quote-names {
+    text-align: left;
+  }
+
+  .chart-quote-prices {
+    align-items: flex-start;
   }
 }

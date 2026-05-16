@@ -13,6 +13,7 @@ import yfinance as yf
 from flask import Flask, jsonify, render_template, request
 
 import analytics
+import indicators
 
 app = Flask(__name__)
 
@@ -20,6 +21,19 @@ MARKET_DISPLAY = {
     "us": "United States · NYSE / NASDAQ",
     "asx": "Australia · ASX / ASX 200",
 }
+
+# yfinance period / interval per UI timeframe button
+CHART_RANGES: dict[str, dict[str, str]] = {
+    "1D": {"period": "1d", "interval": "5m"},
+    "5D": {"period": "5d", "interval": "30m"},
+    "1M": {"period": "1mo", "interval": "1d"},
+    "3M": {"period": "3mo", "interval": "1d"},
+    "6M": {"period": "6mo", "interval": "1d"},
+    "1Y": {"period": "1y", "interval": "1d"},
+    "5Y": {"period": "5y", "interval": "1wk"},
+}
+
+DEFAULT_CHART_RANGE = "3M"
 
 
 def normalize_ticker(raw: str, market: str) -> str:
@@ -56,6 +70,107 @@ def _history_rule(interval: str) -> str | None:
     if interval in ("year", "yearly", "y", "annual", "annually"):
         return "Y"
     return None
+
+
+def _bars_from_hist(df: pd.DataFrame, *, intraday: bool) -> list[dict[str, Any]]:
+    idx = df.index
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_convert(timezone.utc).tz_localize(None)
+    bars: list[dict[str, Any]] = []
+    for i, ts in enumerate(idx):
+        row = df.iloc[i]
+        if intraday:
+            t = pd.Timestamp(ts).isoformat()
+        else:
+            t = pd.Timestamp(ts).strftime("%Y-%m-%d")
+        bars.append(
+            {
+                "t": t,
+                "o": float(row["Open"]),
+                "h": float(row["High"]),
+                "l": float(row["Low"]),
+                "c": float(row["Close"]),
+                "v": float(row["Volume"]) if pd.notna(row["Volume"]) else 0.0,
+            }
+        )
+    return bars
+
+
+def fetch_ohlc(
+    symbol: str, range_key: str = DEFAULT_CHART_RANGE
+) -> tuple[dict[str, Any] | None, str | None]:
+    """OHLCV bars for Plotly candlestick charts."""
+    key = (range_key or DEFAULT_CHART_RANGE).strip().upper()
+    cfg = CHART_RANGES.get(key)
+    if not cfg:
+        return None, f'range must be one of: {", ".join(CHART_RANGES)}'
+
+    period = cfg["period"]
+    interval = cfg["interval"]
+    intraday = interval not in ("1d", "1wk", "1mo", "3mo")
+
+    try:
+        stock = yf.Ticker(symbol)
+        hist = stock.history(period=period, interval=interval, auto_adjust=True)
+        if hist is None or hist.empty:
+            return None, "No price history returned for this symbol."
+
+        df = pd.DataFrame(hist)[["Open", "High", "Low", "Close", "Volume"]].dropna(
+            how="all", subset=["Close"]
+        )
+        if df.empty:
+            return None, "No usable OHLCV rows for this symbol."
+
+        bars = _bars_from_hist(df, intraday=intraday)
+        if not bars:
+            return None, "No usable OHLCV rows for this symbol."
+
+        ind = indicators.compute_indicators(df)
+
+        info: dict[str, Any] = {}
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+        try:
+            fast = stock.fast_info
+        except Exception:
+            fast = {}
+
+        last = _fast_get(fast, "last_price") or _fast_get(fast, "lastPrice")
+        if last is None:
+            last = info.get("regularMarketPrice") or info.get("currentPrice")
+        if last is None:
+            last = bars[-1]["c"]
+
+        prev_close = _fast_get(fast, "previous_close") or _fast_get(fast, "previousClose")
+        if prev_close is None:
+            prev_close = info.get("previousClose")
+        if prev_close is None and len(bars) > 1:
+            prev_close = bars[-2]["c"]
+
+        change_pct = None
+        if last is not None and prev_close not in (None, 0):
+            try:
+                change_pct = (float(last) - float(prev_close)) / float(prev_close) * 100.0
+            except (TypeError, ValueError):
+                change_pct = None
+
+        return {
+            "symbol": symbol,
+            "range": key,
+            "bars": bars,
+            "indicators": ind,
+            "intraday": intraday,
+            "name": info.get("shortName") or info.get("longName") or symbol,
+            "last": float(last) if last is not None else None,
+            "previous_close": float(prev_close) if prev_close is not None else None,
+            "change_percent": round(change_pct, 2) if change_pct is not None else None,
+            "currency": info.get("currency") or _fast_get(fast, "currency"),
+            "exchange": info.get("exchange") or info.get("fullExchangeName"),
+        }, None
+    except Exception as e:
+        return None, str(e)
 
 
 def fetch_history(
@@ -178,14 +293,18 @@ def ticker_page(raw_ticker: str):
     if market not in ("us", "asx"):
         market = "us"
 
-    interval = request.args.get("interval", "day").lower()
-    data, err = compute_quote(raw_ticker, market, history_interval=interval)
+    chart_range = request.args.get("range", DEFAULT_CHART_RANGE).strip().upper()
+    if chart_range not in CHART_RANGES:
+        chart_range = DEFAULT_CHART_RANGE
+    data, err = compute_quote(raw_ticker, market)
     if err or data is None:
         return render_template(
             "ticker.html",
             error=err or "Unknown error.",
             name=None,
             symbol=normalize_ticker(raw_ticker, market) if raw_ticker.strip() else "",
+            chart_range=chart_range,
+            chart_ranges=list(CHART_RANGES.keys()),
         )
 
     sym = data["symbol"]
@@ -199,7 +318,8 @@ def ticker_page(raw_ticker: str):
         symbol=sym,
         market=market,
         market_display=MARKET_DISPLAY[market],
-        interval=interval,
+        chart_range=chart_range,
+        chart_ranges=list(CHART_RANGES.keys()),
         last=data.get("last"),
         last_display=format_price(data.get("last"), data.get("currency")),
         change_percent=data.get("change_percent"),
@@ -208,6 +328,26 @@ def ticker_page(raw_ticker: str):
         graph_series=graph_series,
         analysis_sections=extras["analysis_sections"],
     )
+
+
+@app.get("/api/ohlc")
+def ohlc():
+    raw = request.args.get("ticker", "").strip()
+    market = request.args.get("market", "us").lower()
+    range_key = request.args.get("range", DEFAULT_CHART_RANGE).strip().upper()
+
+    if market not in ("us", "asx"):
+        return jsonify({"ok": False, "error": 'market must be "us" or "asx"'}), 400
+    if not raw.strip():
+        return jsonify({"ok": False, "error": "Enter a ticker symbol."}), 400
+
+    symbol = normalize_ticker(raw, market)
+    payload, err = fetch_ohlc(symbol, range_key)
+    if err:
+        code = 404 if "No " in err or "Invalid" in err else 502
+        return jsonify({"ok": False, "error": err, "symbol": symbol}), code
+    assert payload is not None
+    return jsonify({"ok": True, "market": market, **payload})
 
 
 @app.get("/api/quote")
