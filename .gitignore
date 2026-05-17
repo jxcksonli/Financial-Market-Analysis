@@ -6,3 +6,6 @@ venv/
 env/
 .env
 .DS_Store
+
+# Jinja debug bytecode (do not commit)
+templates/tmpl_*.py

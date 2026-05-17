@@ -8,7 +8,7 @@ import time
 from datetime import date, timedelta
 from typing import Any
 
-from finnhub_client import finnhub_get, finnhub_symbol
+from fmi.integrations.finnhub.client import finnhub_get, finnhub_symbol
 
 NEWS_LIMIT = 20
 LOOKBACK_DAYS = 30

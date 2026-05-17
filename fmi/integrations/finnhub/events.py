@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from finnhub_client import finnhub_get, finnhub_symbol
+from fmi.integrations.finnhub.client import finnhub_get, finnhub_symbol
 
 
 def _num(val: Any) -> float | None:

@@ -1,66 +1,53 @@
 {% extends "base.html" %}
 
 {% block title %}
-  {% if error %}Financial Market Insights{% else %}{{ name or symbol }} — Financial Market Insights{% endif %}
+  {% if error %}Chart{% else %}{{ name or symbol }}{% endif %} — Market Insights
 {% endblock %}
 
 {% block wrap_class %}wrap--chart{% endblock %}
 
 {% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8" defer></script>
-  <script src="{{ url_for('static', filename='ticker_page.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ticker_page.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
-  <nav class="crumb crumb--chart">
-    <a href="{{ url_for('index') }}" class="crumb-link">← Home</a>
-  </nav>
-
   {% if error %}
     <div class="panel alert-panel">
       <p class="alert-msg">{{ error }}</p>
-      <a href="{{ url_for('index') }}" class="btn secondary btn-inline">Back to search</a>
+      <a href="{{ url_for('index') }}" class="btn secondary btn-inline">Back</a>
     </div>
   {% else %}
     <div
-      class="chart-app"
+      class="dashboard"
       id="chart-app"
       data-symbol="{{ symbol }}"
       data-market="{{ market }}"
       data-range="{{ chart_range }}"
     >
-      <aside class="watch-sidebar" aria-label="Watchlist">
-        <div class="watch-sidebar-head">
-          <h2 class="watch-sidebar-title">Watchlist</h2>
-          <button
-            type="button"
-            class="btn secondary watch-sentiment-refresh"
-            id="sentiment-refresh-btn"
-            title="Re-analyze all watchlist tickers with Claude"
-          >
-            Refresh sentiment
-          </button>
+      <aside class="rail rail--watch" aria-label="Watchlist">
+        <div class="rail-head">
+          <h2 class="rail-title">Watchlist</h2>
         </div>
-        <p class="watch-sentiment-status" id="watch-sentiment-status" aria-live="polite"></p>
-        <ul class="watch-sidebar-list" id="watch-sidebar-list"></ul>
+        <ul class="watch-list" id="watch-sidebar-list"></ul>
       </aside>
 
-      <div class="chart-main">
-        <header class="chart-toolbar panel">
-          <form class="chart-ticker-form" id="chart-ticker-form" autocomplete="off">
-            <label class="sr-only" for="chart-ticker-input">Ticker</label>
-            <div class="input-shell chart-ticker-shell">
-              <input
-                type="text"
-                id="chart-ticker-input"
-                value="{{ symbol }}"
-                placeholder="AAPL, SPY, QQQ…"
-                maxlength="32"
-                spellcheck="false"
-                autocomplete="off"
-              />
-            </div>
-            <button type="submit" class="btn secondary btn-inline chart-go-btn">Go</button>
+      <main class="dashboard-main">
+        <header class="command-bar">
+          <form class="command-search" id="chart-ticker-form" autocomplete="off">
+            <label class="sr-only" for="chart-ticker-input">Symbol</label>
+            <input
+              type="text"
+              id="chart-ticker-input"
+              class="command-input mono"
+              value="{{ symbol }}"
+              placeholder="Ticker"
+              maxlength="32"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn primary command-go">Go</button>
           </form>
 
           <div class="range-toggle" id="range-toggle" role="group" aria-label="Timeframe">
@@ -75,159 +62,109 @@
             {% endfor %}
           </div>
 
-          <div class="chart-quote" id="chart-quote">
-            <div class="chart-quote-names">
-              <span class="market-badge market-badge--compact">{{ market_display }}</span>
-              <h1 class="chart-symbol-title" id="chart-name">{{ name or symbol }}</h1>
-              <p class="chart-symbol-meta">
-                <span class="mono" id="chart-symbol">{{ symbol }}</span>
-                {% if exchange %}<span class="dot-sep">·</span> <span id="chart-exchange">{{ exchange }}</span>{% endif %}
-              </p>
+          <div class="command-quote" id="chart-quote">
+            <div class="command-quote-text">
+              <span class="command-name" id="chart-name">{{ name or symbol }}</span>
+              <span class="command-meta mono" id="chart-symbol">{{ symbol }}</span>
             </div>
-            <div class="chart-quote-prices">
-              {% if last_display %}
-                <div class="q-price ticker-page-price" id="display-last">{{ last_display }}</div>
-              {% endif %}
-              {% if change_percent is not none %}
-                <div
-                  class="chip q-change {% if change_percent > 0 %}up{% elif change_percent < 0 %}down{% else %}neutral{% endif %}"
-                  id="display-change"
-                >
-                  {% if change_percent > 0 %}▲ +{% elif change_percent < 0 %}▼ {% endif %}{{ "%.2f"|format(change_percent) }}%
-                </div>
-              {% else %}
-                <div class="chip q-change neutral" id="display-change">—</div>
-              {% endif %}
+            <div class="command-prices">
+              <span class="command-price mono" id="display-last">{{ last_display or "—" }}</span>
+              <span
+                class="chip q-change {% if change_percent is not none %}{% if change_percent > 0 %}up{% elif change_percent < 0 %}down{% else %}neutral{% endif %}{% else %}neutral{% endif %}"
+                id="display-change"
+              >
+                {% if change_percent is not none %}
+                  {% if change_percent > 0 %}+{% endif %}{{ "%.2f"|format(change_percent) }}%
+                {% else %}—{% endif %}
+              </span>
             </div>
           </div>
         </header>
 
-        <div class="indicator-toolbar panel" id="indicator-toolbar" aria-label="Chart indicators">
-          <span class="indicator-toolbar-label">Indicators</span>
-          <label class="indicator-check">
-            <input type="checkbox" id="ind-ma" data-indicator="ma" />
-            <span>MA 50 / 200</span>
-          </label>
-          <label class="indicator-check">
-            <input type="checkbox" id="ind-bb" data-indicator="bb" />
-            <span>Bollinger</span>
-          </label>
-          <label class="indicator-check">
-            <input type="checkbox" id="ind-volume" data-indicator="volume" checked />
-            <span>Volume</span>
-          </label>
-          <label class="indicator-check">
-            <input type="checkbox" id="ind-rsi" data-indicator="rsi" />
-            <span>RSI (14)</span>
-          </label>
-          <label class="indicator-check">
-            <input type="checkbox" id="ind-macd" data-indicator="macd" />
-            <span>MACD</span>
-          </label>
+        <details class="indicators-drawer">
+          <summary>Indicators</summary>
+          <div class="indicators-row" id="indicator-toolbar">
+            <label class="indicator-check">
+              <input type="checkbox" id="ind-ma" />
+              <span>MA 50/200</span>
+            </label>
+            <label class="indicator-check">
+              <input type="checkbox" id="ind-bb" />
+              <span>Bollinger</span>
+            </label>
+            <label class="indicator-check">
+              <input type="checkbox" id="ind-volume" data-indicator="volume" checked />
+              <span>Volume</span>
+            </label>
+            <label class="indicator-check">
+              <input type="checkbox" id="ind-rsi" />
+              <span>RSI</span>
+            </label>
+            <label class="indicator-check">
+              <input type="checkbox" id="ind-macd" />
+              <span>MACD</span>
+            </label>
+          </div>
+        </details>
+
+        <div class="chart-stage">
+          <div class="chart-plot-host" id="plotly-chart" aria-label="Price chart"></div>
+          <p class="chart-status" id="chart-status" role="status" aria-live="polite"></p>
         </div>
 
-        <div class="chart-plot-host" id="plotly-chart" aria-label="Price chart"></div>
-        <p class="chart-status" id="chart-status" role="status" aria-live="polite"></p>
-      </div>
+        <details class="analysis-drawer">
+          <summary>Fundamentals &amp; analysis</summary>
+          <div class="analysis-grid analysis-grid--compact">
+            {% for block in analysis_sections %}
+              {% if not block.hidden %}
+                <article class="panel analysis-card analysis-card--compact">
+                  <h3 class="analysis-card-title">{{ block.title }}</h3>
+                  <p class="analysis-card-body">{{ block.body }}</p>
+                </article>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </details>
+      </main>
 
-      <aside class="news-sidebar" id="news-sidebar" aria-label="News">
+      <aside class="rail rail--insight" id="news-sidebar" aria-label="News and events">
         <button
           type="button"
-          class="news-collapse-btn"
+          class="rail-toggle"
           id="news-collapse-btn"
           aria-expanded="true"
-          aria-controls="news-sidebar-inner"
-          title="Collapse news panel"
+          aria-label="Collapse panel"
         >
-          <span class="news-collapse-icon" aria-hidden="true">›</span>
+          ‹
         </button>
-        <div class="news-sidebar-inner" id="news-sidebar-inner">
-          <div class="side-panel-tabs" role="tablist" aria-label="Sidebar panels">
-            <button type="button" class="side-panel-tab is-active" id="tab-news" data-panel="news" role="tab" aria-selected="true">News</button>
-            <button type="button" class="side-panel-tab" id="tab-events" data-panel="events" role="tab" aria-selected="false">Events</button>
-          </div>
-          <div class="side-panel-pane is-active" id="side-panel-news" role="tabpanel">
-          <header class="news-sidebar-head">
-            <p class="news-sidebar-symbol mono" id="news-symbol-label">—</p>
-          </header>
-
-          <div class="news-watch-tabs" id="news-watch-tabs" role="tablist" aria-label="Watchlist news"></div>
-
-          <div class="news-filter-wrap">
-            <label class="sr-only" for="news-filter">News filter</label>
-            <div class="input-shell input-shell--select news-filter-shell">
-              <select id="news-filter" name="news-filter">
-                <option value="all" selected>All</option>
-                <option value="company">Company-specific</option>
-                <option value="market">Market news</option>
-              </select>
-            </div>
+        <div class="rail-body" id="news-sidebar-inner">
+          <div class="side-tabs" role="tablist">
+            <button type="button" class="side-tab is-active" id="tab-news" data-panel="news" role="tab">News</button>
+            <button type="button" class="side-tab" id="tab-events" data-panel="events" role="tab">Events</button>
           </div>
 
-          <ul class="news-list" id="news-list" aria-live="polite"></ul>
-          <p class="news-status" id="news-status"></p>
-          <p class="news-attribution">News via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+          <div class="side-pane is-active" id="side-panel-news" role="tabpanel">
+            <p class="side-pane-label mono" id="news-symbol-label">{{ symbol }}</p>
+            <div class="chip-row" id="news-watch-tabs" aria-label="Watchlist news"></div>
+            <select id="news-filter" class="side-select" aria-label="News filter">
+              <option value="all" selected>All news</option>
+              <option value="company">Company</option>
+              <option value="market">Market</option>
+            </select>
+            <ul class="feed-list" id="news-list"></ul>
+            <p class="side-status" id="news-status"></p>
           </div>
-          <div class="side-panel-pane" id="side-panel-events" role="tabpanel" hidden>
-            <section class="events-block">
-              <h3 class="events-block-title">Upcoming earnings</h3>
-              <p class="events-block-sub">NVTS, ETHA, and chart ticker</p>
-              <ul class="events-list" id="earnings-events-list" aria-live="polite"></ul>
-            </section>
-            <section class="events-block">
-              <h3 class="events-block-title">Macro calendar</h3>
-              <p class="events-block-sub">Fed · CPI · NFP (US)</p>
-              <ul class="events-calendar-list" id="macro-events-list" aria-live="polite"></ul>
-            </section>
-            <p class="news-status" id="events-status"></p>
-            <p class="news-attribution">Earnings via <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer">Finnhub</a></p>
+
+          <div class="side-pane" id="side-panel-events" role="tabpanel" hidden>
+            <h3 class="side-pane-heading">Earnings</h3>
+            <ul class="feed-list feed-list--compact" id="earnings-events-list"></ul>
+            <h3 class="side-pane-heading">Macro</h3>
+            <ul class="feed-list feed-list--compact" id="macro-events-list"></ul>
+            <p class="side-status" id="events-status"></p>
           </div>
         </div>
       </aside>
     </div>
-
-    <section class="analysis-section analysis-section--below">
-      <h2 class="section-title analysis-heading">Analysis</h2>
-      <p class="section-sub analysis-lead">
-        Quant and fundamentals snapshot generated from recent price history and Yahoo Finance metadata.
-      </p>
-      <div class="analysis-grid">
-        {% for block in analysis_sections %}
-          {% if block.hidden %}
-            {% if block.markers %}
-              <script type="application/json" id="ticker-markers-json">
-                {{ block.markers | tojson }}
-              </script>
-            {% endif %}
-          {% else %}
-            <article class="panel analysis-card">
-              <div class="analysis-card-head">
-                <h3 class="analysis-card-title">{{ block.title }}</h3>
-                {% if block.metric_label %}
-                  <span class="analysis-metric">
-                    <span class="analysis-metric-label">{{ block.metric_label }}</span>
-                    <span class="analysis-metric-value">{{ block.metric_value }}</span>
-                  </span>
-                {% endif %}
-              </div>
-              <p class="analysis-card-body">{{ block.body }}</p>
-              {% if block.links %}
-                <ul class="analysis-links">
-                  {% for link in block.links %}
-                    <li>
-                      <a href="{{ link.url | e }}" target="_blank" rel="noopener noreferrer">
-                        {{ link.title }}
-                      </a>
-                      {% if link.meta %}<span class="analysis-link-meta">{{ link.meta }}</span>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-            </article>
-          {% endif %}
-        {% endfor %}
-      </div>
-    </section>
 
     <script type="application/json" id="ticker-meta-json">
       {{ {"currency": currency or "USD", "market": market} | tojson }}

@@ -10,8 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-    <script src="{{ url_for('static', filename='morning_brief.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     {% block extra_head %}{% endblock %}
   </head>
   <body>
@@ -29,34 +28,11 @@
           <span class="brand-text">Financial Market <span class="brand-accent">Insights</span></span>
         </a>
         <div class="top-actions">
-          <button type="button" class="btn secondary morning-brief-btn" id="morning-brief-btn">
-            Morning Brief
-          </button>
-          <span class="live-pill">
-            <span class="live-dot"></span>
-            yfinance
-          </span>
+          {% block top_actions %}
+            <a href="{{ url_for('index') }}" class="btn secondary top-nav-link">Home</a>
+          {% endblock %}
         </div>
       </header>
-
-      <div id="morning-brief-modal" class="brief-modal" hidden aria-hidden="true">
-        <div class="brief-modal-backdrop" data-brief-close></div>
-        <div class="brief-modal-card" role="dialog" aria-modal="true" aria-labelledby="brief-modal-title">
-          <header class="brief-modal-head">
-            <div>
-              <h2 id="brief-modal-title" class="brief-modal-title">Morning Brief</h2>
-              <p class="brief-modal-meta" id="brief-modal-meta"></p>
-            </div>
-            <button type="button" class="brief-modal-close" data-brief-close aria-label="Close">×</button>
-          </header>
-          <div class="brief-modal-body" id="brief-modal-body"></div>
-          <footer class="brief-modal-foot">
-            <button type="button" class="btn secondary" id="brief-copy-btn">Copy to clipboard</button>
-            <button type="button" class="btn secondary" id="brief-export-btn">Export .txt</button>
-            <button type="button" class="btn primary" data-brief-close>Close</button>
-          </footer>
-        </div>
-      </div>
 
       {% block content %}{% endblock %}
 

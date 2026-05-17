@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-import macro_calendar
-from finnhub_client import finnhub_symbol
-from finnhub_events import fetch_earnings_calendar, upcoming_earnings_for_symbols
+from fmi.data import macro_calendar
+from fmi.integrations.finnhub.client import finnhub_symbol
+from fmi.integrations.finnhub.events import (
+    fetch_earnings_calendar,
+    upcoming_earnings_for_symbols,
+)
 
 EARNINGS_WATCHLIST = ("NVTS", "ETHA")
 
@@ -112,13 +115,8 @@ def build_chart_markers(
     return markers
 
 
-def fetch_events_payload(
-    chart_symbol: str,
-    range_key: str,
-    bars: list[dict[str, Any]] | None = None,
-    *,
-    intraday: bool = False,
-) -> dict[str, Any]:
+def fetch_events_panel(chart_symbol: str) -> dict[str, Any]:
+    """Earnings + macro lists only (no chart marker rebuild)."""
     symbols = earnings_symbol_set(chart_symbol)
     earnings: list[dict[str, Any]] = []
     try:
@@ -127,17 +125,27 @@ def fetch_events_payload(
         raise
 
     macro = macro_calendar.upcoming_macro()
-    chart_markers: list[dict[str, Any]] = []
-    if bars:
-        chart_markers = build_chart_markers(
-            chart_symbol, range_key, bars, intraday=intraday
-        )
-
     return {
         "chart_symbol": chart_symbol,
         "finnhub_symbol": finnhub_symbol(chart_symbol),
         "earnings_watchlist": list(EARNINGS_WATCHLIST),
         "earnings": earnings,
         "macro": macro,
-        "chart_markers": chart_markers,
     }
+
+
+def fetch_events_payload(
+    chart_symbol: str,
+    range_key: str,
+    bars: list[dict[str, Any]] | None = None,
+    *,
+    intraday: bool = False,
+) -> dict[str, Any]:
+    payload = fetch_events_panel(chart_symbol)
+    chart_markers: list[dict[str, Any]] = []
+    if bars:
+        chart_markers = build_chart_markers(
+            chart_symbol, range_key, bars, intraday=intraday
+        )
+    payload["chart_markers"] = chart_markers
+    return payload

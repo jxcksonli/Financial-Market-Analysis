@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=http://127.0.0.1:5000/" />
+    <title>Opening app…</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 32rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+        color: #e2e8f0;
+        background: #06080c;
+      }
+      a {
+        color: #38bdf8;
+      }
+      code {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Financial Market Insights</h1>
+    <p>
+      Redirecting to the Flask app…
+      <a href="http://127.0.0.1:5000/">http://127.0.0.1:5000/</a>
+    </p>
+    <p>
+      <strong>Do not use Live Server on</strong> <code>templates/index.html</code> — that file is a
+      Jinja template, not a normal web page. Run <code>python app.py</code> first, then open the link
+      above (or use Live Server on this file instead).
+    </p>
+    <script>
+      location.replace("http://127.0.0.1:5000/");
+    </script>
+  </body>
+</html>

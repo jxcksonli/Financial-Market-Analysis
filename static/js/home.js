@@ -1,7 +1,12 @@
 (function () {
   const form = document.getElementById("lookup-form");
   const submitBtn = document.getElementById("submit-btn");
-  if (!form || !submitBtn) return;
+  const wrap = document.querySelector(".wrap--home");
+  const tabLookup = document.getElementById("home-tab-lookup");
+  const tabWatchlist = document.getElementById("home-tab-watchlist");
+  const paneLookup = document.getElementById("home-pane-lookup");
+  const paneWatchlist = document.getElementById("home-pane-watchlist");
+  const HOME_TAB_KEY = "fmi_home_tab_v1";
 
   const STORAGE_KEY = "fmi_watchlist_v1";
   const watchInput = document.getElementById("watch-ticker");
@@ -15,8 +20,11 @@
   const tbodyEl = document.getElementById("watchlist-tbody");
 
   let chart = null;
+  let watchlistTabReady = false;
+  let activeHomeTab = "lookup";
 
   function getSelectedMarket() {
+    if (!form) return "us";
     try {
       const m = new FormData(form).get("market");
       return (m || "us").toString();
@@ -369,18 +377,88 @@
     }
 
     setStatus("Loaded " + items.length + " tickers.", false);
+
+    if (chart && activeHomeTab === "watchlist") {
+      requestAnimationFrame(function () {
+        chart.resize();
+      });
+    }
   }
 
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    const ticker = (document.getElementById("ticker") || {}).value;
-    if (!ticker || !ticker.trim()) return;
-    const market =
-      (new FormData(form).get("market") || "us").toString();
-    const path = "/ticker/" + encodeURIComponent(ticker.trim());
-    const q = new URLSearchParams({ market });
-    window.location.href = path + "?" + q.toString();
-  });
+  function activateHomeTab(tab) {
+    const isWatchlist = tab === "watchlist";
+    activeHomeTab = tab;
+
+    if (tabLookup) {
+      tabLookup.classList.toggle("is-active", !isWatchlist);
+      tabLookup.setAttribute("aria-selected", !isWatchlist ? "true" : "false");
+    }
+    if (tabWatchlist) {
+      tabWatchlist.classList.toggle("is-active", isWatchlist);
+      tabWatchlist.setAttribute("aria-selected", isWatchlist ? "true" : "false");
+    }
+    if (paneLookup) {
+      paneLookup.classList.toggle("is-active", !isWatchlist);
+      paneLookup.hidden = isWatchlist;
+    }
+    if (paneWatchlist) {
+      paneWatchlist.classList.toggle("is-active", isWatchlist);
+      paneWatchlist.hidden = !isWatchlist;
+    }
+    if (wrap) {
+      wrap.classList.toggle("wrap--home-wide", isWatchlist);
+    }
+
+    try {
+      localStorage.setItem(HOME_TAB_KEY, tab);
+    } catch {
+      /* ignore */
+    }
+
+    if (isWatchlist) {
+      if (!watchlistTabReady) {
+        watchlistTabReady = true;
+        redraw();
+      } else if (chart) {
+        requestAnimationFrame(function () {
+          chart.resize();
+        });
+      }
+    }
+  }
+
+  function initHomeTabs() {
+    if (!tabLookup || !tabWatchlist) return;
+
+    let initial = "lookup";
+    try {
+      const saved = localStorage.getItem(HOME_TAB_KEY);
+      if (saved === "watchlist" || saved === "lookup") initial = saved;
+    } catch {
+      /* ignore */
+    }
+
+    tabLookup.addEventListener("click", function () {
+      activateHomeTab("lookup");
+    });
+    tabWatchlist.addEventListener("click", function () {
+      activateHomeTab("watchlist");
+    });
+
+    activateHomeTab(initial);
+  }
+
+  if (form && submitBtn) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const ticker = (document.getElementById("ticker") || {}).value;
+      if (!ticker || !ticker.trim()) return;
+      const market = (new FormData(form).get("market") || "us").toString();
+      const path = "/ticker/" + encodeURIComponent(ticker.trim());
+      const q = new URLSearchParams({ market });
+      window.location.href = path + "?" + q.toString();
+    });
+  }
 
   if (addBtn && watchInput) {
     addBtn.addEventListener("click", async function () {
@@ -455,6 +533,11 @@
     });
   }
 
-  // Initial render
-  redraw();
+  initHomeTabs();
+
+  window.addEventListener("resize", function () {
+    if (activeHomeTab === "watchlist" && chart) {
+      chart.resize();
+    }
+  });
 })();
